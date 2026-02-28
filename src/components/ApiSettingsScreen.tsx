@@ -1,29 +1,103 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronLeft, Settings } from 'lucide-react';
-import { ApiSettings } from '../types';
+import { ChevronLeft, Settings, Plus, Trash2, Image as ImageIcon, Download, Upload } from 'lucide-react';
+import { ApiSettings, Persona, UserProfile } from '../types';
 
 interface Props {
   settings: ApiSettings;
-  onSave: (settings: ApiSettings) => void;
+  personas: Persona[];
+  userProfile: UserProfile;
+  onSave: (settings: ApiSettings, personas: Persona[], userProfile: UserProfile) => void;
   onBack: () => void;
 }
 
-export function ApiSettingsScreen({ settings, onSave, onBack }: Props) {
+export function ApiSettingsScreen({ settings, personas: initialPersonas, userProfile: initialUserProfile, onSave, onBack }: Props) {
   const [apiUrl, setApiUrl] = useState(settings.apiUrl);
   const [apiKey, setApiKey] = useState(settings.apiKey);
   const [model, setModel] = useState(settings.model);
   const [temperature, setTemperature] = useState(settings.temperature);
+  const [proactiveDelay, setProactiveDelay] = useState(settings.proactiveDelay || 10);
   const [logs, setLogs] = useState<string[]>(['> System initialized...']);
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
+  const [personas, setPersonas] = useState<Persona[]>(initialPersonas);
+  const [userProfile, setUserProfile] = useState<UserProfile>(initialUserProfile);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const userAvatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
   const handleSave = () => {
-    onSave({ apiUrl, apiKey, model, temperature });
+    onSave({ apiUrl, apiKey, model, temperature, proactiveDelay }, personas, userProfile);
     setLogs(prev => [...prev, '> Settings saved successfully.']);
+    onBack();
+  };
+
+  const handleImportPersonas = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const imported = JSON.parse(event.target?.result as string);
+          if (Array.isArray(imported)) {
+            setPersonas(imported);
+            setLogs(prev => [...prev, '> Personas imported successfully.']);
+          } else {
+            throw new Error('Invalid format');
+          }
+        } catch (err) {
+          setLogs(prev => [...prev, '> Error: Failed to import personas.']);
+          alert('导入失败：文件格式不正确');
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleExportPersonas = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(personas, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "personas.json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    setLogs(prev => [...prev, '> Personas exported successfully.']);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          callback(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAddPersona = () => {
+    const newPersona: Persona = {
+      id: `p${Date.now()}`,
+      name: `新角色 ${personas.length + 1}`,
+      instructions: '你是一个新的 AI 助手。',
+    };
+    setPersonas([...personas, newPersona]);
+  };
+
+  const handleUpdatePersona = (id: string, updates: Partial<Persona>) => {
+    setPersonas(personas.map(p => p.id === id ? { ...p, ...updates } : p));
+  };
+
+  const handleDeletePersona = (id: string) => {
+    if (personas.length <= 1) {
+      alert("至少需要保留一个角色！");
+      return;
+    }
+    setPersonas(personas.filter(p => p.id !== id));
   };
 
   const handleFetchModels = async () => {
@@ -91,10 +165,74 @@ export function ApiSettingsScreen({ settings, onSave, onBack }: Props) {
           <span className="text-[15px] -ml-1">桌面</span>
         </button>
         <h1 className="font-semibold text-neutral-900 text-[15px]">接口与人设</h1>
-        <div className="w-16"></div> {/* Spacer */}
+        <button onClick={handleSave} className="text-blue-500 font-semibold text-[15px] active:opacity-70 px-4">
+          保存
+        </button>
       </div>
 
       <div className="flex-1 p-4 overflow-y-auto">
+        {/* User Settings */}
+        <div className="bg-white rounded-2xl shadow-sm border border-neutral-100 p-5 space-y-4 mb-4">
+          <h2 className="text-[14px] font-semibold text-neutral-800 border-b border-neutral-100 pb-2">我的设定</h2>
+          
+          <div className="flex items-center gap-4">
+            <div 
+              className="w-16 h-16 bg-neutral-100 rounded-xl flex items-center justify-center cursor-pointer overflow-hidden relative shadow-sm shrink-0"
+              onClick={() => userAvatarInputRef.current?.click()}
+            >
+              {userProfile.avatarUrl ? (
+                <img src={userProfile.avatarUrl} alt="User Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <ImageIcon size={24} className="text-neutral-400" />
+              )}
+            </div>
+            <input 
+              type="file" accept="image/*" className="hidden" ref={userAvatarInputRef}
+              onChange={(e) => handleImageUpload(e, (url) => setUserProfile({ ...userProfile, avatarUrl: url }))}
+            />
+            <div className="flex-1 space-y-1 min-w-0">
+              <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-wide">我的名字</label>
+              <input 
+                type="text" 
+                value={userProfile.name}
+                onChange={(e) => setUserProfile({ ...userProfile, name: e.target.value })}
+                className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-[14px] text-neutral-900"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-neutral-100">
+            <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-wide">拍一拍后缀 (别人拍你时显示)</label>
+            <input 
+              type="text" 
+              placeholder="例如：肩膀"
+              value={userProfile.patSuffix || ''}
+              onChange={(e) => setUserProfile({ ...userProfile, patSuffix: e.target.value })}
+              className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-[14px] text-neutral-900"
+            />
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-neutral-100">
+            <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-wide">纪念日 (相恋日期)</label>
+            <input 
+              type="date" 
+              value={userProfile.anniversaryDate || ''}
+              onChange={(e) => setUserProfile({ ...userProfile, anniversaryDate: e.target.value })}
+              className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-[14px] text-neutral-900"
+            />
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-neutral-100">
+            <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-wide">我的人设 (My Persona)</label>
+            <textarea 
+              placeholder="例如：我是一个喜欢打游戏的大学生..."
+              value={userProfile.persona || ''}
+              onChange={(e) => setUserProfile({ ...userProfile, persona: e.target.value })}
+              className="w-full h-24 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none text-[14px] text-neutral-900 leading-relaxed"
+            />
+          </div>
+        </div>
+
         <div className="bg-white rounded-2xl shadow-sm border border-neutral-100 p-5 space-y-6">
           
           <div className="flex items-center gap-2 text-neutral-700">
@@ -181,6 +319,20 @@ export function ApiSettingsScreen({ settings, onSave, onBack }: Props) {
             </p>
           </div>
 
+          <div className="space-y-2 pt-2">
+            <label className="text-[11px] font-medium text-neutral-500 ml-1">主动回复延迟 ({proactiveDelay}秒)</label>
+            <input 
+              type="range" 
+              min="5" max="60" step="1"
+              value={proactiveDelay}
+              onChange={(e) => setProactiveDelay(parseInt(e.target.value))}
+              className="w-full accent-blue-500 h-1.5 bg-neutral-200 rounded-lg appearance-none cursor-pointer"
+            />
+            <p className="text-[10px] text-neutral-400 ml-1 mt-1">
+              (聊天界面不活跃时，AI 主动发消息的等待时间)
+            </p>
+          </div>
+
           <div className="space-y-2 pt-4">
             <label className="text-[11px] font-medium text-neutral-500 ml-1">终端日志</label>
             <div className="w-full h-32 bg-black rounded-xl p-4 overflow-y-auto font-mono text-[11px] text-green-400 leading-relaxed shadow-inner">
@@ -192,6 +344,99 @@ export function ApiSettingsScreen({ settings, onSave, onBack }: Props) {
           </div>
 
         </div>
+
+        {/* AI Personas */}
+        <div className="bg-white rounded-2xl shadow-sm border border-neutral-100 p-5 space-y-6 mt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-neutral-700">
+              <Settings size={20} className="text-blue-400" />
+              <h2 className="font-semibold text-[15px]">AI 角色设定</h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1 text-neutral-500 text-[12px] font-medium active:opacity-70 cursor-pointer">
+                <Upload size={14} /> 导入
+                <input type="file" accept=".json" className="hidden" onChange={handleImportPersonas} />
+              </label>
+              <button 
+                onClick={handleExportPersonas}
+                className="flex items-center gap-1 text-neutral-500 text-[12px] font-medium active:opacity-70"
+              >
+                <Download size={14} /> 导出
+              </button>
+              <button 
+                onClick={handleAddPersona}
+                className="flex items-center gap-1 text-blue-500 text-[13px] font-medium active:opacity-70 ml-2"
+              >
+                <Plus size={16} /> 添加角色
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {personas.map((persona, index) => (
+              <div key={persona.id} className="bg-neutral-50 p-4 rounded-xl border border-neutral-200 space-y-4 relative">
+                <div className="flex justify-between items-center border-b border-neutral-200 pb-2">
+                  <h3 className="text-[13px] font-medium text-neutral-600">角色 {index + 1}</h3>
+                  <button 
+                    onClick={() => handleDeletePersona(persona.id)}
+                    className="text-red-400 p-1 active:bg-red-50 rounded"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <div 
+                      className="w-16 h-16 bg-white rounded-xl flex items-center justify-center cursor-pointer overflow-hidden shadow-sm shrink-0 border border-neutral-200"
+                    >
+                      {persona.avatarUrl ? (
+                        <img src={persona.avatarUrl} alt="AI Avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon size={24} className="text-neutral-400" />
+                      )}
+                    </div>
+                    <input 
+                      type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer"
+                      onChange={(e) => handleImageUpload(e, (url) => handleUpdatePersona(persona.id, { avatarUrl: url }))}
+                    />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-wide">TA 的名字</label>
+                    <input 
+                      type="text" 
+                      value={persona.name}
+                      onChange={(e) => handleUpdatePersona(persona.id, { name: e.target.value })}
+                      className="w-full bg-white border border-neutral-200 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-[14px] text-neutral-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-wide">拍一拍后缀 (你拍TA时显示)</label>
+                  <input 
+                    type="text" 
+                    placeholder="例如：肩膀"
+                    value={persona.patSuffix || ''}
+                    onChange={(e) => handleUpdatePersona(persona.id, { patSuffix: e.target.value })}
+                    className="w-full bg-white border border-neutral-200 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-[14px] text-neutral-900"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-wide">角色人设 (Persona Background)</label>
+                  <textarea 
+                    value={persona.instructions}
+                    onChange={(e) => handleUpdatePersona(persona.id, { instructions: e.target.value })}
+                    placeholder="例如：你是一个傲娇的青梅竹马..."
+                    className="w-full h-24 bg-white border border-neutral-200 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none text-[14px] text-neutral-900 leading-relaxed"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );

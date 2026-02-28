@@ -5,6 +5,7 @@ import { ThemeSettings } from '../types';
 export function Phone({ children, onHomeClick, theme }: { children: React.ReactNode, onHomeClick: () => void, theme: ThemeSettings }) {
   const [battery, setBattery] = useState(100);
   const [isCharging, setIsCharging] = useState(false);
+  const [time, setTime] = useState(new Date());
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -15,6 +16,15 @@ export function Phone({ children, onHomeClick, theme }: { children: React.ReactN
     }, 3000); // Fast update for demo purposes
     return () => clearInterval(timer);
   }, [isCharging]);
+
+  useEffect(() => {
+    const timeTimer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timeTimer);
+  }, []);
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
 
   return (
     <div className="flex items-center justify-center min-h-[100dvh] bg-black sm:bg-neutral-900 sm:p-4 font-sans overflow-hidden">
@@ -56,7 +66,7 @@ export function Phone({ children, onHomeClick, theme }: { children: React.ReactN
 
         {/* Status Bar */}
         <div className="absolute top-0 w-full h-14 flex items-center justify-between px-6 z-50 text-neutral-800 text-xs font-bold pointer-events-none mix-blend-difference text-white pt-2">
-          <span className="drop-shadow-md text-[13px]">22:33</span>
+          <span className="drop-shadow-md text-[13px]">{formatTime(time)}</span>
           
           {/* Dynamic Island / Notch */}
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-8 bg-black rounded-full z-50 pointer-events-auto"></div>
@@ -75,11 +85,11 @@ export function Phone({ children, onHomeClick, theme }: { children: React.ReactN
               <span className="text-[11px]">{battery}</span>
               <div className="relative w-6 h-3 border border-white rounded-[4px] p-[1px] flex items-center">
                 <div 
-                  className={`h-full rounded-[1px] transition-all duration-500 ${isCharging ? 'bg-green-400' : battery <= 20 ? 'bg-red-500' : 'bg-white'}`} 
+                  className={`h-full rounded-[1px] transition-all duration-500 ${isCharging ? 'bg-[#34C759]' : battery <= 20 ? 'bg-red-500' : 'bg-white'}`} 
                   style={{ width: `${battery}%` }}
                 ></div>
                 <div className="absolute -right-[3px] top-1/2 -translate-y-1/2 w-[2px] h-1.5 bg-white rounded-r-sm opacity-80"></div>
-                {isCharging && <Zap size={10} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-black fill-black" />}
+                {isCharging && <Zap size={10} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white fill-white drop-shadow-sm" />}
               </div>
             </div>
           </div>

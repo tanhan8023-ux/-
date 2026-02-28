@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { ChevronLeft, Image as ImageIcon, Type, Palette, Lock, Grid } from 'lucide-react';
 import { ThemeSettings } from '../types';
+import localforage from 'localforage';
 
 interface Props {
   theme: ThemeSettings;
@@ -16,15 +17,18 @@ const ICON_KEYS = [
   { id: 'game', label: '游戏' },
   { id: 'mail', label: '信箱' },
   { id: 'express', label: '驿站' },
-  { id: 'api', label: 'API' },
+  { id: 'more', label: '更多' },
 ];
 
 export function ThemeSettingsScreen({ theme, onSave, onBack }: Props) {
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
   const lockWallpaperInputRef = useRef<HTMLInputElement>(null);
   const momentsBgInputRef = useRef<HTMLInputElement>(null);
+  const chatBgInputRef = useRef<HTMLInputElement>(null);
   const fontInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
+  const widgetTopRightInputRef = useRef<HTMLInputElement>(null);
+  const widgetBottomLeftInputRef = useRef<HTMLInputElement>(null);
   const [activeIconId, setActiveIconId] = React.useState<string | null>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
@@ -40,16 +44,17 @@ export function ThemeSettingsScreen({ theme, onSave, onBack }: Props) {
     }
   };
 
-  const handleFontChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFontChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          onSave({ ...theme, fontUrl: event.target.result as string });
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const url = URL.createObjectURL(file);
+        onSave({ ...theme, fontUrl: url });
+        await localforage.setItem('themeFontBlob', file);
+      } catch (error) {
+        console.error("Failed to save font", error);
+        alert("保存字体失败");
+      }
     }
   };
 
@@ -77,7 +82,7 @@ export function ThemeSettingsScreen({ theme, onSave, onBack }: Props) {
         
         {/* Wallpapers */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-3">
+          <div className="space-y-3 min-w-0">
             <label className="text-[11px] font-medium text-neutral-500 ml-1 uppercase tracking-wide flex items-center gap-1.5">
               <Lock size={12} /> 锁屏壁纸
             </label>
@@ -97,7 +102,7 @@ export function ThemeSettingsScreen({ theme, onSave, onBack }: Props) {
             />
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3 min-w-0">
             <label className="text-[11px] font-medium text-neutral-500 ml-1 uppercase tracking-wide flex items-center gap-1.5">
               <ImageIcon size={12} /> 桌面壁纸
             </label>
@@ -136,6 +141,54 @@ export function ThemeSettingsScreen({ theme, onSave, onBack }: Props) {
               type="file" accept="image/*" className="hidden" ref={momentsBgInputRef}
               onChange={(e) => handleImageUpload(e, (url) => onSave({ ...theme, momentsBg: url }))}
             />
+          </div>
+
+          {/* Chat Background */}
+          <div className="space-y-3 col-span-2 border-t border-neutral-200 pt-4 mt-2">
+            <label className="text-[11px] font-medium text-neutral-500 ml-1 uppercase tracking-wide flex items-center gap-1.5">
+              <ImageIcon size={12} /> 聊天背景图
+            </label>
+            <div 
+              className="w-full h-32 bg-white border border-neutral-200 rounded-xl flex items-center justify-center cursor-pointer overflow-hidden relative shadow-sm"
+              onClick={() => chatBgInputRef.current?.click()}
+            >
+              {theme.chatBg ? (
+                <img src={theme.chatBg} alt="Chat Background" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-neutral-400 text-xs text-center px-2">点击选择<br/>聊天背景 (默认纯色)</span>
+              )}
+            </div>
+            <input 
+              type="file" accept="image/*" className="hidden" ref={chatBgInputRef}
+              onChange={(e) => handleImageUpload(e, (url) => onSave({ ...theme, chatBg: url }))}
+            />
+          </div>
+
+          {/* Desktop Widgets */}
+          <div className="space-y-3 col-span-2 border-t border-neutral-200 pt-4 mt-2">
+            <label className="text-[13px] font-medium text-neutral-500 ml-1 uppercase tracking-wide flex items-center gap-2">
+              <Grid size={14} /> 桌面相框小组件
+            </label>
+            <div className="space-y-2">
+              <span className="text-[11px] text-neutral-400 ml-1">自定义相框图片</span>
+              <div 
+                className="w-full aspect-[2/1] bg-white border border-neutral-200 rounded-xl flex items-center justify-center cursor-pointer overflow-hidden relative shadow-sm"
+                onClick={() => widgetBottomLeftInputRef.current?.click()}
+              >
+                {theme.widgetImages?.bottomLeft ? (
+                  <img src={theme.widgetImages.bottomLeft} alt="Desktop Widget" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-neutral-400 text-xs text-center px-2">点击选择<br/>图片</span>
+                )}
+              </div>
+              <input 
+                type="file" accept="image/*" className="hidden" ref={widgetBottomLeftInputRef}
+                onChange={(e) => handleImageUpload(e, (url) => onSave({ 
+                  ...theme, 
+                  widgetImages: { ...theme.widgetImages, bottomLeft: url } 
+                }))}
+              />
+            </div>
           </div>
         </div>
 
